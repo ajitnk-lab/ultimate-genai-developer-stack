@@ -8,7 +8,7 @@ This comprehensive implementation was developed using Amazon Q CLI,which deliver
 At present, i have a windows laptop and there is no way i can natively install q cli on it nor its possible to install q on cloudshell on AWS Cloud.
 
 ### Solution
-This prompted me to come up in my multiple iterations with Amazon Q CLI to develop a secure, reliable , performant, cost-effective solution to create a q cli environment which i can connect remotely from my PC or Mobile, ready to use  IDE environment (VS code)as well as Amazon Q cli with MCP many servers pre-enabled, to which i can connect remotely and start using right away.
+This prompted me to come up in my multiple iterations with Amazon Q CLI to develop a secure, reliable , performant, cost-effective solution to create a q cli cloudformation stack,to which i can connect remotely from my PC or Mobile, ready to use  IDE environment (VS code)as well as Amazon Q cli with MCP many servers pre-enabled, to which i can connect remotely and start using right away.
 
 
 ## 📊 Key Metrics & Benefits
