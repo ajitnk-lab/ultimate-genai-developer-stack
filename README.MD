@@ -1,4 +1,4 @@
-![logo](Q dev challenge1.jpg)
+![logo1](Qdevchallenge-1.jpg)
 
 # Build Ultimate GenAi Developer Stack
 
