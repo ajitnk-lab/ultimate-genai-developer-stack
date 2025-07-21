@@ -72,8 +72,8 @@ This prompted me to come up in my multiple iterations with Amazon Q CLI to devel
 
 
 ## 🎯 Connect to Spot instance using remote-ssh plug-in of Vs code from laptop
-![deployemnt screen1](ssh config file.png)
-![deployemnt screen1](q cli in vs code remote.png)
+![deployemnt screen1](sshconfigfile.png)
+![deployemnt screen1](qcliinvscoderemote.png)
 
 
 ## 🎯 Connect to Spot instance using remote-ssh plug-in of Vs code from Mobile(I used xTerminal app on my iphone)
