@@ -64,7 +64,7 @@ This prompted me to come up in my multiple iterations with Amazon Q CLI to devel
 
 
 ## 🎯 Deploying the solution to AWS
-screen1,2,3
+!(deployment-screen1.png)
 
 ## 🎯 Connect to Spot instance using remote-ssh plug-in of Vs code from laptop
 
