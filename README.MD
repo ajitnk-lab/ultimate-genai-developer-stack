@@ -1,3 +1,5 @@
+![logo](Q dev challenge1.jpg)
+
 # Build Ultimate GenAi Developer Stack
 
 ## 🚀 Executive Summary
@@ -70,12 +72,15 @@ This prompted me to come up in my multiple iterations with Amazon Q CLI to devel
 
 
 ## 🎯 Connect to Spot instance using remote-ssh plug-in of Vs code from laptop
+![deployemnt screen1](ssh config file.png)
+![deployemnt screen1](q cli in vs code remote.png)
 
 
 ## 🎯 Connect to Spot instance using remote-ssh plug-in of Vs code from Mobile(I used xTerminal app on my iphone)
 
 use ssh client app on your mobile to connect to Elastic IP of EC2 Spot instance and access q cli on the go
-video
+![deployemnt screen1](RPReplay-Final1753099230.MP4)
+
 
 ## 🎯 How Q Developer Helped
 Used Q Cli for trubleshooting the issue/error and provide suggestion
