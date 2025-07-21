@@ -80,16 +80,24 @@ This prompted me to come up in my multiple iterations with Amazon Q CLI to devel
 
 
 ## 🎯 How Q Developer Helped
-Used Q Cli for trubleshooting the issue/error and provide suggestion
-Used Q cli for providing optimazation techniques and iterate
-Used Q cli for documenting the solution
-Used Q cli for getting suggestions for  improvement areas
-Used Q cli for automation
+Used Q Cli for trubleshooting the issue/error and provide suggestion.
+
+Used Q cli for providing optimazation techniques and iterate.
+
+Used Q cli for documenting the solution.
+
+Used Q cli for getting suggestions for  improvement areas.
+
+Used Q cli for automation.
+
 
 ## 🎯 Lessons Learned
 Create custom rules and place them in rules/ folder which guide amazon q to follow thru.
+
 Create global context so that context is saved at account level for forthcoming q cli sessions.
-Iterate over the code generated until you are satisfied with the outcome
+
+Iterate over the code generated until you are satisfied with the outcome.
+
 
 ## 🎯 Quick Start
 
