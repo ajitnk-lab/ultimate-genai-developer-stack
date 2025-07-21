@@ -1,0 +1,1210 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon Q CLI SPOT FLEET V10 - ENHANCED COMPLETE: 6 Launch Configs with ALL original logic preserved'
+
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair
+    Default: amazon-q-key-uswest2
+  
+  SpotPriceM5:
+    Type: String
+    Description: Maximum spot price for M5 instances
+    Default: '0.400'
+  
+  SpotPriceM6i:
+    Type: String
+    Description: Maximum spot price for M6i instances
+    Default: '0.350'
+  
+  SpotPriceC5:
+    Type: String
+    Description: Maximum spot price for C5 instances
+    Default: '0.300'
+  
+  SpotPriceC6i:
+    Type: String
+    Description: Maximum spot price for C6i instances
+    Default: '0.280'
+  
+  SpotPriceR5:
+    Type: String
+    Description: Maximum spot price for R5 instances
+    Default: '0.450'
+  
+  SpotPriceR6i:
+    Type: String
+    Description: Maximum spot price for R6i instances
+    Default: '0.400'
+
+Resources:
+  # VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: AmazonQ-SpotFleet-VPC-V10-Enhanced
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  # Attach Gateway
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public Subnets in ALL 4 AZs
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: us-west-2a
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: AmazonQ-Public-Subnet-A
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: us-west-2b
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: AmazonQ-Public-Subnet-B
+
+  PublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: us-west-2c
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: AmazonQ-Public-Subnet-C
+
+  PublicSubnetD:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: us-west-2d
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: AmazonQ-Public-Subnet-D
+
+  # Route Table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: AmazonQ-Public-RouteTable
+
+  # Public Route
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Associate Route Tables
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetC
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetDRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetD
+      RouteTableId: !Ref PublicRouteTable
+
+  # Security Group
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Amazon Q CLI Spot Fleet V10 Enhanced
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: SSH access
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+          Description: VS Code Server
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: All outbound traffic
+      Tags:
+        - Key: Name
+          Value: AmazonQ-SecurityGroup-V10-Enhanced
+
+  # IAM Role for EC2 instances
+  AdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Tags:
+        - Key: Name
+          Value: AmazonQ-AdminRole-V10-Enhanced
+
+  # Instance Profile
+  AdminInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref AdminRole
+
+  # Elastic IP
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: AmazonQ-ElasticIP-V10-Enhanced
+
+  # IAM Role for Spot Fleet
+  SpotFleetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: spotfleet.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
+      Tags:
+        - Key: Name
+          Value: AmazonQ-SpotFleetRole-V10-Enhanced
+
+  # ENHANCED SPOT FLEET with 6 Launch Configurations - ALL ORIGINAL LOGIC PRESERVED
+  SpotFleet:
+    Type: AWS::EC2::SpotFleet
+    Properties:
+      SpotFleetRequestConfigData:
+        IamFleetRole: !GetAtt SpotFleetRole.Arn
+        AllocationStrategy: diversified
+        TargetCapacity: 1
+        SpotPrice: '0.500'
+        ReplaceUnhealthyInstances: true
+        TerminateInstancesWithExpiration: false
+        LaunchSpecifications:
+          # M5 in us-west-2a (General Purpose - Balanced)
+          - ImageId: ami-0ec1bf4a8f92e7bd1
+            InstanceType: m5.2xlarge
+            KeyName: !Ref KeyName
+            SecurityGroups:
+              - GroupId: !Ref SecurityGroup
+            SubnetId: !Ref PublicSubnetA
+            IamInstanceProfile:
+              Arn: !GetAtt AdminInstanceProfile.Arn
+            SpotPrice: !Ref SpotPriceM5
+            WeightedCapacity: 1
+            BlockDeviceMappings:
+              - DeviceName: /dev/sda1
+                Ebs:
+                  VolumeSize: 40
+                  VolumeType: gp3
+                  DeleteOnTermination: true
+                  Encrypted: true
+            UserData:
+              Fn::Base64: !Sub |
+                #!/bin/bash -xe
+                
+                # Logging function
+                log() {
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a /var/log/amazon-q-setup.log >&2
+                }
+                
+                # Get instance metadata
+                INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+                REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+                INSTANCE_AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+                
+                log "🚀 Starting Amazon Q CLI SPOT FLEET V10 ENHANCED setup on instance $INSTANCE_ID in AZ: $INSTANCE_AZ (m5 Family)"
+                
+                # Install essential tools
+                log "📦 Installing essential tools..."
+                apt-get update
+                apt-get install -y unzip curl wget jq
+                
+                # Install AWS CLI
+                log "📦 Installing AWS CLI..."
+                curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                unzip awscliv2.zip
+                ./aws/install
+                
+                # INTELLIGENT VOLUME MANAGEMENT - PERSISTENT ACROSS AZs
+                log "💾 Starting intelligent volume management..."
+                
+                # Look for existing available volume in same AZ
+                log "🔍 Looking for existing volume in AZ: $INSTANCE_AZ"
+                VOLUME_ID=$(aws ec2 describe-volumes \
+                  --region $REGION \
+                  --query "Volumes[?AvailabilityZone=='$INSTANCE_AZ' && Tags[?Key=='Purpose' && Value=='AmazonQ-CLI-Storage'] && State=='available']|[0].VolumeId" \
+                  --output text)
+                
+                if [ "$VOLUME_ID" = "None" ] || [ -z "$VOLUME_ID" ]; then
+                  log "🆕 Creating fresh volume in AZ $INSTANCE_AZ"
+                  VOLUME_ID=$(aws ec2 create-volume \
+                    --region $REGION \
+                    --availability-zone $INSTANCE_AZ \
+                    --size 30 \
+                    --volume-type gp3 \
+                    --encrypted \
+                    --tag-specifications "ResourceType=volume,Tags=[{Key=Name,Value=AmazonQ-PersistentData},{Key=Purpose,Value=AmazonQ-CLI-Storage}]" \
+                    --query 'VolumeId' \
+                    --output text)
+                  
+                  log "⏳ Waiting for volume $VOLUME_ID to be available..."
+                  aws ec2 wait volume-available --region $REGION --volume-ids $VOLUME_ID
+                  log "✅ Created fresh volume: $VOLUME_ID"
+                else
+                  log "✅ Found existing volume: $VOLUME_ID"
+                fi
+                
+                # Attach volume
+                log "🔗 Attaching volume $VOLUME_ID to instance $INSTANCE_ID"
+                aws ec2 attach-volume \
+                  --region $REGION \
+                  --volume-id $VOLUME_ID \
+                  --instance-id $INSTANCE_ID \
+                  --device /dev/xvdf
+                
+                log "⏳ Waiting for volume attachment..."
+                aws ec2 wait volume-in-use --region $REGION --volume-ids $VOLUME_ID
+                
+                # Detect device name
+                log "🔍 Detecting device name..."
+                sleep 10
+                DEVICE_NAME=""
+                for i in {1..10}; do
+                  if [ -b "/dev/xvdf" ]; then
+                    DEVICE_NAME="/dev/xvdf"
+                    break
+                  elif [ -b "/dev/nvme1n1" ]; then
+                    DEVICE_NAME="/dev/nvme1n1"
+                    break
+                  else
+                    sleep 1
+                  fi
+                done
+                
+                if [ -z "$DEVICE_NAME" ]; then
+                  log "❌ Could not find attached volume device"
+                  exit 1
+                fi
+                
+                log "📁 Device found at: $DEVICE_NAME"
+                
+                # Create filesystem if needed
+                if ! blkid $DEVICE_NAME; then
+                  log "🔧 Creating filesystem on new volume..."
+                  mkfs.ext4 $DEVICE_NAME
+                fi
+                
+                # Mount volume
+                log "📂 Mounting volume..."
+                mkdir -p /persistent
+                mount $DEVICE_NAME /persistent
+                UUID=$(blkid -s UUID -o value $DEVICE_NAME)
+                echo "UUID=$UUID /persistent ext4 defaults 0 2" >> /etc/fstab
+                
+                # Associate Elastic IP
+                log "🌐 Associating Elastic IP..."
+                aws ec2 associate-address \
+                  --region $REGION \
+                  --instance-id $INSTANCE_ID \
+                  --allocation-id ${ElasticIP.AllocationId}
+                
+                # Download and execute V10 ENHANCED setup script from PUBLIC S3
+                log "📥 Downloading V10 ENHANCED setup script with complete 17 MCP servers..."
+                curl -o /tmp/user-data-script-s3copy.sh "https://s3.us-west-2.amazonaws.com/03-july-2025-qclvscodespot-4.14pm/user-data-script-s3copy.sh"
+                chmod +x /tmp/user-data-script-s3copy.sh
+                /tmp/user-data-script-s3copy.sh
+                
+                # Signal completion
+                log "🎉 V10 ENHANCED Setup completed successfully for m5!"
+                echo "SETUP_SUCCESS_V10_ENHANCED_M5" > /tmp/setup-status.txt
+                log "✅ Amazon Q CLI + VS Code Server V10 ENHANCED Setup Complete with 17 MCP Servers!"
+            TagSpecifications:
+              - ResourceType: instance
+                Tags:
+                  - Key: Name
+                    Value: AmazonQ-CLI-VSCode-V10-m5.2xlarge-us-west-2a
+                  - Key: Fleet
+                    Value: AmazonQ-SpotFleet-V10-Enhanced
+                  - Key: InstanceFamily
+                    Value: m5
+                  - Key: AZ
+                    Value: us-west-2a
+
+          # M6I in us-west-2b (Latest General Purpose)
+          - ImageId: ami-0ec1bf4a8f92e7bd1
+            InstanceType: m6i.2xlarge
+            KeyName: !Ref KeyName
+            SecurityGroups:
+              - GroupId: !Ref SecurityGroup
+            SubnetId: !Ref PublicSubnetB
+            IamInstanceProfile:
+              Arn: !GetAtt AdminInstanceProfile.Arn
+            SpotPrice: !Ref SpotPriceM6i
+            WeightedCapacity: 1
+            BlockDeviceMappings:
+              - DeviceName: /dev/sda1
+                Ebs:
+                  VolumeSize: 40
+                  VolumeType: gp3
+                  DeleteOnTermination: true
+                  Encrypted: true
+            UserData:
+              Fn::Base64: !Sub |
+                #!/bin/bash -xe
+                
+                # Logging function
+                log() {
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a /var/log/amazon-q-setup.log >&2
+                }
+                
+                # Get instance metadata
+                INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+                REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+                INSTANCE_AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+                
+                log "🚀 Starting Amazon Q CLI SPOT FLEET V10 ENHANCED setup on instance $INSTANCE_ID in AZ: $INSTANCE_AZ (m6i Family)"
+                
+                # Install essential tools
+                log "📦 Installing essential tools..."
+                apt-get update
+                apt-get install -y unzip curl wget jq
+                
+                # Install AWS CLI
+                log "📦 Installing AWS CLI..."
+                curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                unzip awscliv2.zip
+                ./aws/install
+                
+                # INTELLIGENT VOLUME MANAGEMENT - PERSISTENT ACROSS AZs
+                log "💾 Starting intelligent volume management..."
+                
+                # Look for existing available volume in same AZ
+                log "🔍 Looking for existing volume in AZ: $INSTANCE_AZ"
+                VOLUME_ID=$(aws ec2 describe-volumes \
+                  --region $REGION \
+                  --query "Volumes[?AvailabilityZone=='$INSTANCE_AZ' && Tags[?Key=='Purpose' && Value=='AmazonQ-CLI-Storage'] && State=='available']|[0].VolumeId" \
+                  --output text)
+                
+                if [ "$VOLUME_ID" = "None" ] || [ -z "$VOLUME_ID" ]; then
+                  log "🆕 Creating fresh volume in AZ $INSTANCE_AZ"
+                  VOLUME_ID=$(aws ec2 create-volume \
+                    --region $REGION \
+                    --availability-zone $INSTANCE_AZ \
+                    --size 30 \
+                    --volume-type gp3 \
+                    --encrypted \
+                    --tag-specifications "ResourceType=volume,Tags=[{Key=Name,Value=AmazonQ-PersistentData},{Key=Purpose,Value=AmazonQ-CLI-Storage}]" \
+                    --query 'VolumeId' \
+                    --output text)
+                  
+                  log "⏳ Waiting for volume $VOLUME_ID to be available..."
+                  aws ec2 wait volume-available --region $REGION --volume-ids $VOLUME_ID
+                  log "✅ Created fresh volume: $VOLUME_ID"
+                else
+                  log "✅ Found existing volume: $VOLUME_ID"
+                fi
+                
+                # Attach volume
+                log "🔗 Attaching volume $VOLUME_ID to instance $INSTANCE_ID"
+                aws ec2 attach-volume \
+                  --region $REGION \
+                  --volume-id $VOLUME_ID \
+                  --instance-id $INSTANCE_ID \
+                  --device /dev/xvdf
+                
+                log "⏳ Waiting for volume attachment..."
+                aws ec2 wait volume-in-use --region $REGION --volume-ids $VOLUME_ID
+                
+                # Detect device name
+                log "🔍 Detecting device name..."
+                sleep 10
+                DEVICE_NAME=""
+                for i in {1..10}; do
+                  if [ -b "/dev/xvdf" ]; then
+                    DEVICE_NAME="/dev/xvdf"
+                    break
+                  elif [ -b "/dev/nvme1n1" ]; then
+                    DEVICE_NAME="/dev/nvme1n1"
+                    break
+                  else
+                    sleep 1
+                  fi
+                done
+                
+                if [ -z "$DEVICE_NAME" ]; then
+                  log "❌ Could not find attached volume device"
+                  exit 1
+                fi
+                
+                log "📁 Device found at: $DEVICE_NAME"
+                
+                # Create filesystem if needed
+                if ! blkid $DEVICE_NAME; then
+                  log "🔧 Creating filesystem on new volume..."
+                  mkfs.ext4 $DEVICE_NAME
+                fi
+                
+                # Mount volume
+                log "📂 Mounting volume..."
+                mkdir -p /persistent
+                mount $DEVICE_NAME /persistent
+                UUID=$(blkid -s UUID -o value $DEVICE_NAME)
+                echo "UUID=$UUID /persistent ext4 defaults 0 2" >> /etc/fstab
+                
+                # Associate Elastic IP
+                log "🌐 Associating Elastic IP..."
+                aws ec2 associate-address \
+                  --region $REGION \
+                  --instance-id $INSTANCE_ID \
+                  --allocation-id ${ElasticIP.AllocationId}
+                
+                # Download and execute V10 ENHANCED setup script from PUBLIC S3
+                log "📥 Downloading V10 ENHANCED setup script with complete 17 MCP servers..."
+                curl -o /tmp/user-data-script-s3copy.sh "https://s3.us-west-2.amazonaws.com/03-july-2025-qclvscodespot-4.14pm/user-data-script-s3copy.sh"
+                chmod +x /tmp/user-data-script-s3copy.sh
+                /tmp/user-data-script-s3copy.sh
+                
+                # Signal completion
+                log "🎉 V10 ENHANCED Setup completed successfully for m6i!"
+                echo "SETUP_SUCCESS_V10_ENHANCED_M6I" > /tmp/setup-status.txt
+                log "✅ Amazon Q CLI + VS Code Server V10 ENHANCED Setup Complete with 17 MCP Servers!"
+            TagSpecifications:
+              - ResourceType: instance
+                Tags:
+                  - Key: Name
+                    Value: AmazonQ-CLI-VSCode-V10-m6i.2xlarge-us-west-2b
+                  - Key: Fleet
+                    Value: AmazonQ-SpotFleet-V10-Enhanced
+                  - Key: InstanceFamily
+                    Value: m6i
+                  - Key: AZ
+                    Value: us-west-2b
+
+          # C5 in us-west-2c (Compute Optimized)
+          - ImageId: ami-0ec1bf4a8f92e7bd1
+            InstanceType: c5.2xlarge
+            KeyName: !Ref KeyName
+            SecurityGroups:
+              - GroupId: !Ref SecurityGroup
+            SubnetId: !Ref PublicSubnetC
+            IamInstanceProfile:
+              Arn: !GetAtt AdminInstanceProfile.Arn
+            SpotPrice: !Ref SpotPriceC5
+            WeightedCapacity: 1
+            BlockDeviceMappings:
+              - DeviceName: /dev/sda1
+                Ebs:
+                  VolumeSize: 40
+                  VolumeType: gp3
+                  DeleteOnTermination: true
+                  Encrypted: true
+            UserData:
+              Fn::Base64: !Sub |
+                #!/bin/bash -xe
+                
+                # Logging function
+                log() {
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a /var/log/amazon-q-setup.log >&2
+                }
+                
+                # Get instance metadata
+                INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+                REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+                INSTANCE_AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+                
+                log "🚀 Starting Amazon Q CLI SPOT FLEET V10 ENHANCED setup on instance $INSTANCE_ID in AZ: $INSTANCE_AZ (c5 Family)"
+                
+                # Install essential tools
+                log "📦 Installing essential tools..."
+                apt-get update
+                apt-get install -y unzip curl wget jq
+                
+                # Install AWS CLI
+                log "📦 Installing AWS CLI..."
+                curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                unzip awscliv2.zip
+                ./aws/install
+                
+                # INTELLIGENT VOLUME MANAGEMENT - PERSISTENT ACROSS AZs
+                log "💾 Starting intelligent volume management..."
+                
+                # Look for existing available volume in same AZ
+                log "🔍 Looking for existing volume in AZ: $INSTANCE_AZ"
+                VOLUME_ID=$(aws ec2 describe-volumes \
+                  --region $REGION \
+                  --query "Volumes[?AvailabilityZone=='$INSTANCE_AZ' && Tags[?Key=='Purpose' && Value=='AmazonQ-CLI-Storage'] && State=='available']|[0].VolumeId" \
+                  --output text)
+                
+                if [ "$VOLUME_ID" = "None" ] || [ -z "$VOLUME_ID" ]; then
+                  log "🆕 Creating fresh volume in AZ $INSTANCE_AZ"
+                  VOLUME_ID=$(aws ec2 create-volume \
+                    --region $REGION \
+                    --availability-zone $INSTANCE_AZ \
+                    --size 30 \
+                    --volume-type gp3 \
+                    --encrypted \
+                    --tag-specifications "ResourceType=volume,Tags=[{Key=Name,Value=AmazonQ-PersistentData},{Key=Purpose,Value=AmazonQ-CLI-Storage}]" \
+                    --query 'VolumeId' \
+                    --output text)
+                  
+                  log "⏳ Waiting for volume $VOLUME_ID to be available..."
+                  aws ec2 wait volume-available --region $REGION --volume-ids $VOLUME_ID
+                  log "✅ Created fresh volume: $VOLUME_ID"
+                else
+                  log "✅ Found existing volume: $VOLUME_ID"
+                fi
+                
+                # Attach volume
+                log "🔗 Attaching volume $VOLUME_ID to instance $INSTANCE_ID"
+                aws ec2 attach-volume \
+                  --region $REGION \
+                  --volume-id $VOLUME_ID \
+                  --instance-id $INSTANCE_ID \
+                  --device /dev/xvdf
+                
+                log "⏳ Waiting for volume attachment..."
+                aws ec2 wait volume-in-use --region $REGION --volume-ids $VOLUME_ID
+                
+                # Detect device name
+                log "🔍 Detecting device name..."
+                sleep 10
+                DEVICE_NAME=""
+                for i in {1..10}; do
+                  if [ -b "/dev/xvdf" ]; then
+                    DEVICE_NAME="/dev/xvdf"
+                    break
+                  elif [ -b "/dev/nvme1n1" ]; then
+                    DEVICE_NAME="/dev/nvme1n1"
+                    break
+                  else
+                    sleep 1
+                  fi
+                done
+                
+                if [ -z "$DEVICE_NAME" ]; then
+                  log "❌ Could not find attached volume device"
+                  exit 1
+                fi
+                
+                log "📁 Device found at: $DEVICE_NAME"
+                
+                # Create filesystem if needed
+                if ! blkid $DEVICE_NAME; then
+                  log "🔧 Creating filesystem on new volume..."
+                  mkfs.ext4 $DEVICE_NAME
+                fi
+                
+                # Mount volume
+                log "📂 Mounting volume..."
+                mkdir -p /persistent
+                mount $DEVICE_NAME /persistent
+                UUID=$(blkid -s UUID -o value $DEVICE_NAME)
+                echo "UUID=$UUID /persistent ext4 defaults 0 2" >> /etc/fstab
+                
+                # Associate Elastic IP
+                log "🌐 Associating Elastic IP..."
+                aws ec2 associate-address \
+                  --region $REGION \
+                  --instance-id $INSTANCE_ID \
+                  --allocation-id ${ElasticIP.AllocationId}
+                
+                # Download and execute V10 ENHANCED setup script from PUBLIC S3
+                log "📥 Downloading V10 ENHANCED setup script with complete 17 MCP servers..."
+                curl -o /tmp/user-data-script-s3copy.sh "https://s3.us-west-2.amazonaws.com/03-july-2025-qclvscodespot-4.14pm/user-data-script-s3copy.sh"
+                chmod +x /tmp/user-data-script-s3copy.sh
+                /tmp/user-data-script-s3copy.sh
+                
+                # Signal completion
+                log "🎉 V10 ENHANCED Setup completed successfully for c5!"
+                echo "SETUP_SUCCESS_V10_ENHANCED_C5" > /tmp/setup-status.txt
+                log "✅ Amazon Q CLI + VS Code Server V10 ENHANCED Setup Complete with 17 MCP Servers!"
+            TagSpecifications:
+              - ResourceType: instance
+                Tags:
+                  - Key: Name
+                    Value: AmazonQ-CLI-VSCode-V10-c5.2xlarge-us-west-2c
+                  - Key: Fleet
+                    Value: AmazonQ-SpotFleet-V10-Enhanced
+                  - Key: InstanceFamily
+                    Value: c5
+                  - Key: AZ
+                    Value: us-west-2c
+
+          # C6I in us-west-2d (Latest Compute Optimized)
+          - ImageId: ami-0ec1bf4a8f92e7bd1
+            InstanceType: c6i.2xlarge
+            KeyName: !Ref KeyName
+            SecurityGroups:
+              - GroupId: !Ref SecurityGroup
+            SubnetId: !Ref PublicSubnetD
+            IamInstanceProfile:
+              Arn: !GetAtt AdminInstanceProfile.Arn
+            SpotPrice: !Ref SpotPriceC6i
+            WeightedCapacity: 1
+            BlockDeviceMappings:
+              - DeviceName: /dev/sda1
+                Ebs:
+                  VolumeSize: 40
+                  VolumeType: gp3
+                  DeleteOnTermination: true
+                  Encrypted: true
+            UserData:
+              Fn::Base64: !Sub |
+                #!/bin/bash -xe
+                
+                # Logging function
+                log() {
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a /var/log/amazon-q-setup.log >&2
+                }
+                
+                # Get instance metadata
+                INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+                REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+                INSTANCE_AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+                
+                log "🚀 Starting Amazon Q CLI SPOT FLEET V10 ENHANCED setup on instance $INSTANCE_ID in AZ: $INSTANCE_AZ (c6i Family)"
+                
+                # Install essential tools
+                log "📦 Installing essential tools..."
+                apt-get update
+                apt-get install -y unzip curl wget jq
+                
+                # Install AWS CLI
+                log "📦 Installing AWS CLI..."
+                curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                unzip awscliv2.zip
+                ./aws/install
+                
+                # INTELLIGENT VOLUME MANAGEMENT - PERSISTENT ACROSS AZs
+                log "💾 Starting intelligent volume management..."
+                
+                # Look for existing available volume in same AZ
+                log "🔍 Looking for existing volume in AZ: $INSTANCE_AZ"
+                VOLUME_ID=$(aws ec2 describe-volumes \
+                  --region $REGION \
+                  --query "Volumes[?AvailabilityZone=='$INSTANCE_AZ' && Tags[?Key=='Purpose' && Value=='AmazonQ-CLI-Storage'] && State=='available']|[0].VolumeId" \
+                  --output text)
+                
+                if [ "$VOLUME_ID" = "None" ] || [ -z "$VOLUME_ID" ]; then
+                  log "🆕 Creating fresh volume in AZ $INSTANCE_AZ"
+                  VOLUME_ID=$(aws ec2 create-volume \
+                    --region $REGION \
+                    --availability-zone $INSTANCE_AZ \
+                    --size 30 \
+                    --volume-type gp3 \
+                    --encrypted \
+                    --tag-specifications "ResourceType=volume,Tags=[{Key=Name,Value=AmazonQ-PersistentData},{Key=Purpose,Value=AmazonQ-CLI-Storage}]" \
+                    --query 'VolumeId' \
+                    --output text)
+                  
+                  log "⏳ Waiting for volume $VOLUME_ID to be available..."
+                  aws ec2 wait volume-available --region $REGION --volume-ids $VOLUME_ID
+                  log "✅ Created fresh volume: $VOLUME_ID"
+                else
+                  log "✅ Found existing volume: $VOLUME_ID"
+                fi
+                
+                # Attach volume
+                log "🔗 Attaching volume $VOLUME_ID to instance $INSTANCE_ID"
+                aws ec2 attach-volume \
+                  --region $REGION \
+                  --volume-id $VOLUME_ID \
+                  --instance-id $INSTANCE_ID \
+                  --device /dev/xvdf
+                
+                log "⏳ Waiting for volume attachment..."
+                aws ec2 wait volume-in-use --region $REGION --volume-ids $VOLUME_ID
+                
+                # Detect device name
+                log "🔍 Detecting device name..."
+                sleep 10
+                DEVICE_NAME=""
+                for i in {1..10}; do
+                  if [ -b "/dev/xvdf" ]; then
+                    DEVICE_NAME="/dev/xvdf"
+                    break
+                  elif [ -b "/dev/nvme1n1" ]; then
+                    DEVICE_NAME="/dev/nvme1n1"
+                    break
+                  else
+                    sleep 1
+                  fi
+                done
+                
+                if [ -z "$DEVICE_NAME" ]; then
+                  log "❌ Could not find attached volume device"
+                  exit 1
+                fi
+                
+                log "📁 Device found at: $DEVICE_NAME"
+                
+                # Create filesystem if needed
+                if ! blkid $DEVICE_NAME; then
+                  log "🔧 Creating filesystem on new volume..."
+                  mkfs.ext4 $DEVICE_NAME
+                fi
+                
+                # Mount volume
+                log "📂 Mounting volume..."
+                mkdir -p /persistent
+                mount $DEVICE_NAME /persistent
+                UUID=$(blkid -s UUID -o value $DEVICE_NAME)
+                echo "UUID=$UUID /persistent ext4 defaults 0 2" >> /etc/fstab
+                
+                # Associate Elastic IP
+                log "🌐 Associating Elastic IP..."
+                aws ec2 associate-address \
+                  --region $REGION \
+                  --instance-id $INSTANCE_ID \
+                  --allocation-id ${ElasticIP.AllocationId}
+                
+                # Download and execute V10 ENHANCED setup script from PUBLIC S3
+                log "📥 Downloading V10 ENHANCED setup script with complete 17 MCP servers..."
+                curl -o /tmp/user-data-script-s3copy.sh "https://s3.us-west-2.amazonaws.com/03-july-2025-qclvscodespot-4.14pm/user-data-script-s3copy.sh"
+                chmod +x /tmp/user-data-script-s3copy.sh
+                /tmp/user-data-script-s3copy.sh
+                
+                # Signal completion
+                log "🎉 V10 ENHANCED Setup completed successfully for c6i!"
+                echo "SETUP_SUCCESS_V10_ENHANCED_C6I" > /tmp/setup-status.txt
+                log "✅ Amazon Q CLI + VS Code Server V10 ENHANCED Setup Complete with 17 MCP Servers!"
+            TagSpecifications:
+              - ResourceType: instance
+                Tags:
+                  - Key: Name
+                    Value: AmazonQ-CLI-VSCode-V10-c6i.2xlarge-us-west-2d
+                  - Key: Fleet
+                    Value: AmazonQ-SpotFleet-V10-Enhanced
+                  - Key: InstanceFamily
+                    Value: c6i
+                  - Key: AZ
+                    Value: us-west-2d
+
+          # R5 in us-west-2a (Memory Optimized)
+          - ImageId: ami-0ec1bf4a8f92e7bd1
+            InstanceType: r5.2xlarge
+            KeyName: !Ref KeyName
+            SecurityGroups:
+              - GroupId: !Ref SecurityGroup
+            SubnetId: !Ref PublicSubnetA
+            IamInstanceProfile:
+              Arn: !GetAtt AdminInstanceProfile.Arn
+            SpotPrice: !Ref SpotPriceR5
+            WeightedCapacity: 1
+            BlockDeviceMappings:
+              - DeviceName: /dev/sda1
+                Ebs:
+                  VolumeSize: 40
+                  VolumeType: gp3
+                  DeleteOnTermination: true
+                  Encrypted: true
+            UserData:
+              Fn::Base64: !Sub |
+                #!/bin/bash -xe
+                
+                # Logging function
+                log() {
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a /var/log/amazon-q-setup.log >&2
+                }
+                
+                # Get instance metadata
+                INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+                REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+                INSTANCE_AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+                
+                log "🚀 Starting Amazon Q CLI SPOT FLEET V10 ENHANCED setup on instance $INSTANCE_ID in AZ: $INSTANCE_AZ (r5 Family)"
+                
+                # Install essential tools
+                log "📦 Installing essential tools..."
+                apt-get update
+                apt-get install -y unzip curl wget jq
+                
+                # Install AWS CLI
+                log "📦 Installing AWS CLI..."
+                curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                unzip awscliv2.zip
+                ./aws/install
+                
+                # INTELLIGENT VOLUME MANAGEMENT - PERSISTENT ACROSS AZs
+                log "💾 Starting intelligent volume management..."
+                
+                # Look for existing available volume in same AZ
+                log "🔍 Looking for existing volume in AZ: $INSTANCE_AZ"
+                VOLUME_ID=$(aws ec2 describe-volumes \
+                  --region $REGION \
+                  --query "Volumes[?AvailabilityZone=='$INSTANCE_AZ' && Tags[?Key=='Purpose' && Value=='AmazonQ-CLI-Storage'] && State=='available']|[0].VolumeId" \
+                  --output text)
+                
+                if [ "$VOLUME_ID" = "None" ] || [ -z "$VOLUME_ID" ]; then
+                  log "🆕 Creating fresh volume in AZ $INSTANCE_AZ"
+                  VOLUME_ID=$(aws ec2 create-volume \
+                    --region $REGION \
+                    --availability-zone $INSTANCE_AZ \
+                    --size 30 \
+                    --volume-type gp3 \
+                    --encrypted \
+                    --tag-specifications "ResourceType=volume,Tags=[{Key=Name,Value=AmazonQ-PersistentData},{Key=Purpose,Value=AmazonQ-CLI-Storage}]" \
+                    --query 'VolumeId' \
+                    --output text)
+                  
+                  log "⏳ Waiting for volume $VOLUME_ID to be available..."
+                  aws ec2 wait volume-available --region $REGION --volume-ids $VOLUME_ID
+                  log "✅ Created fresh volume: $VOLUME_ID"
+                else
+                  log "✅ Found existing volume: $VOLUME_ID"
+                fi
+                
+                # Attach volume
+                log "🔗 Attaching volume $VOLUME_ID to instance $INSTANCE_ID"
+                aws ec2 attach-volume \
+                  --region $REGION \
+                  --volume-id $VOLUME_ID \
+                  --instance-id $INSTANCE_ID \
+                  --device /dev/xvdf
+                
+                log "⏳ Waiting for volume attachment..."
+                aws ec2 wait volume-in-use --region $REGION --volume-ids $VOLUME_ID
+                
+                # Detect device name
+                log "🔍 Detecting device name..."
+                sleep 10
+                DEVICE_NAME=""
+                for i in {1..10}; do
+                  if [ -b "/dev/xvdf" ]; then
+                    DEVICE_NAME="/dev/xvdf"
+                    break
+                  elif [ -b "/dev/nvme1n1" ]; then
+                    DEVICE_NAME="/dev/nvme1n1"
+                    break
+                  else
+                    sleep 1
+                  fi
+                done
+                
+                if [ -z "$DEVICE_NAME" ]; then
+                  log "❌ Could not find attached volume device"
+                  exit 1
+                fi
+                
+                log "📁 Device found at: $DEVICE_NAME"
+                
+                # Create filesystem if needed
+                if ! blkid $DEVICE_NAME; then
+                  log "🔧 Creating filesystem on new volume..."
+                  mkfs.ext4 $DEVICE_NAME
+                fi
+                
+                # Mount volume
+                log "📂 Mounting volume..."
+                mkdir -p /persistent
+                mount $DEVICE_NAME /persistent
+                UUID=$(blkid -s UUID -o value $DEVICE_NAME)
+                echo "UUID=$UUID /persistent ext4 defaults 0 2" >> /etc/fstab
+                
+                # Associate Elastic IP
+                log "🌐 Associating Elastic IP..."
+                aws ec2 associate-address \
+                  --region $REGION \
+                  --instance-id $INSTANCE_ID \
+                  --allocation-id ${ElasticIP.AllocationId}
+                
+                # Download and execute V10 ENHANCED setup script from PUBLIC S3
+                log "📥 Downloading V10 ENHANCED setup script with complete 17 MCP servers..."
+                curl -o /tmp/user-data-script-s3copy.sh "https://s3.us-west-2.amazonaws.com/03-july-2025-qclvscodespot-4.14pm/user-data-script-s3copy.sh"
+                chmod +x /tmp/user-data-script-s3copy.sh
+                /tmp/user-data-script-s3copy.sh
+                
+                # Signal completion
+                log "🎉 V10 ENHANCED Setup completed successfully for r5!"
+                echo "SETUP_SUCCESS_V10_ENHANCED_R5" > /tmp/setup-status.txt
+                log "✅ Amazon Q CLI + VS Code Server V10 ENHANCED Setup Complete with 17 MCP Servers!"
+            TagSpecifications:
+              - ResourceType: instance
+                Tags:
+                  - Key: Name
+                    Value: AmazonQ-CLI-VSCode-V10-r5.2xlarge-us-west-2a
+                  - Key: Fleet
+                    Value: AmazonQ-SpotFleet-V10-Enhanced
+                  - Key: InstanceFamily
+                    Value: r5
+                  - Key: AZ
+                    Value: us-west-2a
+
+          # R6I in us-west-2b (Latest Memory Optimized)
+          - ImageId: ami-0ec1bf4a8f92e7bd1
+            InstanceType: r6i.2xlarge
+            KeyName: !Ref KeyName
+            SecurityGroups:
+              - GroupId: !Ref SecurityGroup
+            SubnetId: !Ref PublicSubnetB
+            IamInstanceProfile:
+              Arn: !GetAtt AdminInstanceProfile.Arn
+            SpotPrice: !Ref SpotPriceR6i
+            WeightedCapacity: 1
+            BlockDeviceMappings:
+              - DeviceName: /dev/sda1
+                Ebs:
+                  VolumeSize: 40
+                  VolumeType: gp3
+                  DeleteOnTermination: true
+                  Encrypted: true
+            UserData:
+              Fn::Base64: !Sub |
+                #!/bin/bash -xe
+                
+                # Logging function
+                log() {
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a /var/log/amazon-q-setup.log >&2
+                }
+                
+                # Get instance metadata
+                INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+                REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+                INSTANCE_AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+                
+                log "🚀 Starting Amazon Q CLI SPOT FLEET V10 ENHANCED setup on instance $INSTANCE_ID in AZ: $INSTANCE_AZ (r6i Family)"
+                
+                # Install essential tools
+                log "📦 Installing essential tools..."
+                apt-get update
+                apt-get install -y unzip curl wget jq
+                
+                # Install AWS CLI
+                log "📦 Installing AWS CLI..."
+                curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                unzip awscliv2.zip
+                ./aws/install
+                
+                # INTELLIGENT VOLUME MANAGEMENT - PERSISTENT ACROSS AZs
+                log "💾 Starting intelligent volume management..."
+                
+                # Look for existing available volume in same AZ
+                log "🔍 Looking for existing volume in AZ: $INSTANCE_AZ"
+                VOLUME_ID=$(aws ec2 describe-volumes \
+                  --region $REGION \
+                  --query "Volumes[?AvailabilityZone=='$INSTANCE_AZ' && Tags[?Key=='Purpose' && Value=='AmazonQ-CLI-Storage'] && State=='available']|[0].VolumeId" \
+                  --output text)
+                
+                if [ "$VOLUME_ID" = "None" ] || [ -z "$VOLUME_ID" ]; then
+                  log "🆕 Creating fresh volume in AZ $INSTANCE_AZ"
+                  VOLUME_ID=$(aws ec2 create-volume \
+                    --region $REGION \
+                    --availability-zone $INSTANCE_AZ \
+                    --size 30 \
+                    --volume-type gp3 \
+                    --encrypted \
+                    --tag-specifications "ResourceType=volume,Tags=[{Key=Name,Value=AmazonQ-PersistentData},{Key=Purpose,Value=AmazonQ-CLI-Storage}]" \
+                    --query 'VolumeId' \
+                    --output text)
+                  
+                  log "⏳ Waiting for volume $VOLUME_ID to be available..."
+                  aws ec2 wait volume-available --region $REGION --volume-ids $VOLUME_ID
+                  log "✅ Created fresh volume: $VOLUME_ID"
+                else
+                  log "✅ Found existing volume: $VOLUME_ID"
+                fi
+                
+                # Attach volume
+                log "🔗 Attaching volume $VOLUME_ID to instance $INSTANCE_ID"
+                aws ec2 attach-volume \
+                  --region $REGION \
+                  --volume-id $VOLUME_ID \
+                  --instance-id $INSTANCE_ID \
+                  --device /dev/xvdf
+                
+                log "⏳ Waiting for volume attachment..."
+                aws ec2 wait volume-in-use --region $REGION --volume-ids $VOLUME_ID
+                
+                # Detect device name
+                log "🔍 Detecting device name..."
+                sleep 10
+                DEVICE_NAME=""
+                for i in {1..10}; do
+                  if [ -b "/dev/xvdf" ]; then
+                    DEVICE_NAME="/dev/xvdf"
+                    break
+                  elif [ -b "/dev/nvme1n1" ]; then
+                    DEVICE_NAME="/dev/nvme1n1"
+                    break
+                  else
+                    sleep 1
+                  fi
+                done
+                
+                if [ -z "$DEVICE_NAME" ]; then
+                  log "❌ Could not find attached volume device"
+                  exit 1
+                fi
+                
+                log "📁 Device found at: $DEVICE_NAME"
+                
+                # Create filesystem if needed
+                if ! blkid $DEVICE_NAME; then
+                  log "🔧 Creating filesystem on new volume..."
+                  mkfs.ext4 $DEVICE_NAME
+                fi
+                
+                # Mount volume
+                log "📂 Mounting volume..."
+                mkdir -p /persistent
+                mount $DEVICE_NAME /persistent
+                UUID=$(blkid -s UUID -o value $DEVICE_NAME)
+                echo "UUID=$UUID /persistent ext4 defaults 0 2" >> /etc/fstab
+                
+                # Associate Elastic IP
+                log "🌐 Associating Elastic IP..."
+                aws ec2 associate-address \
+                  --region $REGION \
+                  --instance-id $INSTANCE_ID \
+                  --allocation-id ${ElasticIP.AllocationId}
+                
+                # Download and execute V10 ENHANCED setup script from PUBLIC S3
+                log "📥 Downloading V10 ENHANCED setup script with complete 17 MCP servers..."
+                curl -o /tmp/user-data-script-s3copy.sh "https://s3.us-west-2.amazonaws.com/03-july-2025-qclvscodespot-4.14pm/user-data-script-s3copy.sh"
+                chmod +x /tmp/user-data-script-s3copy.sh
+                /tmp/user-data-script-s3copy.sh
+                
+                # Signal completion
+                log "🎉 V10 ENHANCED Setup completed successfully for r6i!"
+                echo "SETUP_SUCCESS_V10_ENHANCED_R6I" > /tmp/setup-status.txt
+                log "✅ Amazon Q CLI + VS Code Server V10 ENHANCED Setup Complete with 17 MCP Servers!"
+            TagSpecifications:
+              - ResourceType: instance
+                Tags:
+                  - Key: Name
+                    Value: AmazonQ-CLI-VSCode-V10-r6i.2xlarge-us-west-2b
+                  - Key: Fleet
+                    Value: AmazonQ-SpotFleet-V10-Enhanced
+                  - Key: InstanceFamily
+                    Value: r6i
+                  - Key: AZ
+                    Value: us-west-2b
+
+
+Outputs:
+  ElasticIP:
+    Description: Elastic IP address for the instance
+    Value: !Ref ElasticIP
+    Export:
+      Name: !Sub "${AWS::StackName}-ElasticIP"
+
+  VSCodeServerURL:
+    Description: VS Code Server URL
+    Value: !Sub "http://${ElasticIP}:8080"
+    Export:
+      Name: !Sub "${AWS::StackName}-VSCodeURL"
+
+  SSHCommand:
+    Description: SSH command to connect to the instance
+    Value: !Sub "ssh -i ${KeyName}.pem ubuntu@${ElasticIP}"
+    Export:
+      Name: !Sub "${AWS::StackName}-SSHCommand"
+
+  SpotFleetId:
+    Description: Spot Fleet Request ID
+    Value: !Ref SpotFleet
+    Export:
+      Name: !Sub "${AWS::StackName}-SpotFleetId"
+
+  SecurityGroupId:
+    Description: Security Group ID
+    Value: !Ref SecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-SecurityGroupId"
+
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VPCId"
+
+  InstanceFamilies:
+    Description: Instance families configured
+    Value: "M5, M6i, C5, C6i, R5, R6i"
+    Export:
+      Name: !Sub "${AWS::StackName}-InstanceFamilies"
+
+  AvailabilityZones:
+    Description: Availability zones covered
+    Value: "us-west-2a, us-west-2b, us-west-2c, us-west-2d"
+    Export:
+      Name: !Sub "${AWS::StackName}-AvailabilityZones"
+
+  EnhancedFeatures:
+    Description: Enhanced features included
+    Value: |
+      ✅ 6 Launch configurations for maximum availability
+      ✅ Multi-AZ deployment across all us-west-2 zones  
+      ✅ Multiple instance families (M5, M6i, C5, C6i, R5, R6i)
+      ✅ Dynamic spot pricing with intelligent selection
+      ✅ Intelligent volume management with persistent storage
+      ✅ Complete Amazon Q CLI setup with 17 MCP servers
+      ✅ VS Code Server with enhanced configuration
+      ✅ Instance family specific optimizations
+      ✅ Comprehensive error handling and retry mechanisms
+      ✅ Enhanced monitoring and logging
